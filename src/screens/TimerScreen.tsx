@@ -234,11 +234,20 @@ export default function TimerScreen() {
         }
     };
 
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    };
+// Put this outside your component or inside it
+const formatTime = (secondsInput) => {
+  // Ensure we are dealing with a whole number
+  const totalSeconds = Math.floor(secondsInput); 
+  
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  // The padStart(2, '0') ensures it shows "05" instead of "5"
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+// usage in your JSX:
+<Text>{formatTime(remainingTime)}</Text>
 
     const safePreset = currentPreset || DEFAULT_PRESET;
     const canPause = initialDuration >= 12 * 60;
@@ -1175,3 +1184,4 @@ const styles = StyleSheet.create({
         borderWidth: 2,
     },
 });
+
