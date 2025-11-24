@@ -52,7 +52,7 @@ export default function TimerScreen() {
         textSecondary: '#666666',
         primary: customPrimaryColor || '#4CAF50',
         border: '#E0E0E0',
-        error: '#B0020',
+        error: '#B00020',
     };
 
     const {
@@ -115,8 +115,35 @@ export default function TimerScreen() {
     useEffect(() => {
         loadBackgroundSettings();
         loadVisualSet();
+        // Set initial quote
         setQuote(MOTIVATIONAL_SENTENCES[Math.floor(Math.random() * MOTIVATIONAL_SENTENCES.length)]);
     }, []);
+
+    // --- HELPER FUNCTIONS ---
+
+    // 1. FIX: Format time correctly to remove decimals
+    const formatTime = (secondsInput: number) => {
+        const totalSeconds = Math.floor(secondsInput);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    };
+
+    // 2. FIX: Handle Play Press to rotate quote
+    const handlePlayPress = () => {
+        if (!isRunning) {
+            // Only change the quote when STARTING the timer
+            const randomIndex = Math.floor(Math.random() * MOTIVATIONAL_SENTENCES.length);
+            setQuote(MOTIVATIONAL_SENTENCES[randomIndex]);
+        }
+
+        // Logic to handle Pause/Play vs Reset behavior
+        if (!canPause && isRunning) {
+            resetTimer();
+        } else {
+            toggleTimer();
+        }
+    };
 
     const loadBackgroundSettings = async () => {
         try {
@@ -233,21 +260,6 @@ export default function TimerScreen() {
             Alert.alert('Error', 'Failed to import data.');
         }
     };
-
-// Put this outside your component or inside it
-const formatTime = (secondsInput) => {
-  // Ensure we are dealing with a whole number
-  const totalSeconds = Math.floor(secondsInput); 
-  
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  // The padStart(2, '0') ensures it shows "05" instead of "5"
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-};
-
-// usage in your JSX:
-<Text>{formatTime(remainingTime)}</Text>
 
     const safePreset = currentPreset || DEFAULT_PRESET;
     const canPause = initialDuration >= 12 * 60;
@@ -758,12 +770,12 @@ const formatTime = (secondsInput) => {
                                         </Text>
                                     </TouchableOpacity>
                                     <View style={{ marginTop: 20, paddingHorizontal: 40 }}>
-                                        <Text style={{ 
-                                            color: colors.text, 
-                                            fontSize: 14, 
-                                            textAlign: 'center', 
+                                        <Text style={{
+                                            color: colors.text,
+                                            fontSize: 14,
+                                            textAlign: 'center',
                                             fontStyle: 'italic',
-                                            opacity: 0.8 
+                                            opacity: 0.8
                                         }}>
                                             {quote}
                                         </Text>
@@ -801,7 +813,8 @@ const formatTime = (secondsInput) => {
                             { backgroundColor: isEditing ? colors.textSecondary : colors.primary },
                             isEditing && { opacity: 0.5 }
                         ]}
-                        onPress={(!canPause && isRunning) ? resetTimer : toggleTimer}
+                        // UPDATED: Use new handlePlayPress instead of raw toggleTimer
+                        onPress={handlePlayPress}
                         disabled={isEditing}
                     >
                         {isRunning ? (
@@ -1184,4 +1197,3 @@ const styles = StyleSheet.create({
         borderWidth: 2,
     },
 });
-
