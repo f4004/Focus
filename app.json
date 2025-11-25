@@ -33,18 +33,20 @@
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
-      "expo-notifications",
-      "expo-av",
-      "expo-font",   
-      [
-        "@notifee/react-native",
-        {
-          "android": {
-            "foregroundServiceType": "shortService"
-          }
-        }
-      ]
-    ],
+  "expo-notifications",
+  "expo-av",
+  "expo-font",
+  [
+    "expo-build-properties",
+    {
+      "android": {
+        "extraMavenRepos": [
+          "../../node_modules/@notifee/react-native/android/libs"
+        ]
+      }
+    }
+  ]
+],
     "web": {
       "favicon": "./assets/favicon.png"
     },
