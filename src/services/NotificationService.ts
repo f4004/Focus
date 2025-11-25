@@ -1,7 +1,7 @@
 import notifee, { 
     AndroidImportance, 
-    AndroidVisibility, // <--- Added for Lock Screen
-    AndroidForegroundServiceType 
+    AndroidVisibility, 
+    // AndroidForegroundServiceType <-- Remove this import, it crashes Android 10
 } from '@notifee/react-native';
 import { Platform } from 'react-native';
 
@@ -18,8 +18,9 @@ class NotificationService {
             await notifee.createChannel({
                 id: this.channelId,
                 name: 'Focus Timer',
-                importance: AndroidImportance.LOW, 
-                visibility: AndroidVisibility.PUBLIC, // <--- Show on Lock Screen
+                // CHANGE: Use DEFAULT or HIGH. LOW causes services to be killed.
+                importance: AndroidImportance.DEFAULT, 
+                visibility: AndroidVisibility.PUBLIC,
                 vibration: false,
                 sound: undefined,
             });
@@ -41,12 +42,10 @@ class NotificationService {
         const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
         const nextMode = mode === 'focus' ? 'Break' : 'Focus';
 
-        // 1. Prepare configuration
-        // We split logic: "Running" needs a Service, "Paused" is just a notification.
         const androidConfig = isPaused ? {
-            // PAUSED STATE
+            // PAUSED: Standard Notification
             channelId: this.channelId,
-            ongoing: false, // Dismissible
+            ongoing: false,
             autoCancel: false,
             onlyAlertOnce: true,
             color: mode === 'focus' ? '#4CAF50' : '#2196F3',
@@ -60,15 +59,14 @@ class NotificationService {
                 { title: 'Stop', pressAction: { id: 'stop' } },
             ],
         } : {
-            // RUNNING STATE
+            // RUNNING: Foreground Service
             channelId: this.channelId,
-            asForegroundService: true, // Requires Service Type & Audio
-            ongoing: true, // Pinned
+            asForegroundService: true,
+            ongoing: true,
             autoCancel: false,
             onlyAlertOnce: true,
             color: mode === 'focus' ? '#4CAF50' : '#2196F3',
-            // Define Service Type for Android 10-14 safety
-            foregroundServiceTypes: [AndroidForegroundServiceType.MEDIA_PLAYBACK],
+            // REMOVED: foregroundServiceTypes (Crashes Android 10, handled by Manifest)
             progress: {
                 max: totalDuration,
                 current: totalDuration - timeLeft,
@@ -81,20 +79,17 @@ class NotificationService {
         };
 
         try {
-            // 2. If we are Pausing, we MUST stop the service first
-            // Otherwise Android thinks the service is "stuck"
             if (isPaused) {
                 await notifee.stopForegroundService();
             }
 
-            // 3. Display the notification
             await notifee.displayNotification({
                 id: this.notificationId,
                 title: `${mode === 'focus' ? 'Focus' : 'Break'} • ${timeString} remaining`,
                 body: isPaused ? 'Timer Paused' : `Up next: ${nextMode}`,
                 android: {
                     ...androidConfig,
-                    visibility: AndroidVisibility.PUBLIC, // <--- Key for Lock Screen
+                    visibility: AndroidVisibility.PUBLIC,
                     showTimestamp: true,
                 },
                 ios: {
