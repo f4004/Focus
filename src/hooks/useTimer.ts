@@ -51,6 +51,9 @@ export const useTimer = () => {
     useEffect(() => {
         const init = async () => {
             try {
+                // 1. Request Permission FIRST
+                await notificationService.requestPermissions(); 
+                
                 await configureAudio();
                 await configureNotifications();
                 await loadSettings();
@@ -60,7 +63,7 @@ export const useTimer = () => {
             }
         };
         init();
-
+   
         return () => {
             // Cleanup sounds safely
             if (soundObjectRef.current) soundObjectRef.current.unloadAsync();
@@ -387,3 +390,4 @@ export const useTimer = () => {
         switchMode
     };
 };
+
