@@ -1,4 +1,10 @@
-import notifee, { AndroidImportance, AndroidColor, EventType, Event } from '@notifee/react-native';
+import notifee, { 
+  AndroidImportance, 
+  AndroidColor, 
+  EventType, 
+  Event,
+  AndroidForegroundServiceType // <--- Import this
+} from '@notifee/react-native';
 import { Platform } from 'react-native';
 
 class NotificationService {
@@ -47,11 +53,13 @@ class NotificationService {
             body: isPaused ? 'Timer Paused' : `Up next: ${nextMode}`,
             android: {
                 channelId: this.channelId,
-                asForegroundService: true, // Critical for persistence
+                asForegroundService: true,
                 ongoing: true,
                 autoCancel: false,
                 onlyAlertOnce: true,
                 color: mode === 'focus' ? '#4CAF50' : '#2196F3',
+                // 👇 THIS IS THE CRITICAL FIX FOR ANDROID 14+ 👇
+                foregroundServiceTypes: [AndroidForegroundServiceType.MEDIA_PLAYBACK],
                 progress: {
                     max: totalDuration,
                     current: totalDuration - timeLeft,
@@ -73,7 +81,6 @@ class NotificationService {
                 ],
             },
             ios: {
-                // iOS Live Activities are different, standard notification for now
                 foregroundPresentationOptions: {
                     banner: true,
                     list: true,
@@ -101,3 +108,4 @@ class NotificationService {
 }
 
 export const notificationService = new NotificationService();
+
