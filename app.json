@@ -26,7 +26,8 @@
         "android.permission.VIBRATE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.WAKE_LOCK"
+        "android.permission.WAKE_LOCK",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -34,7 +35,15 @@
     "plugins": [
       "expo-notifications",
       "expo-av",
-      "expo-font"
+      "expo-font",   
+      [
+        "@notifee/react-native",
+        {
+          "android": {
+            "foregroundServiceType": "shortService"
+          }
+        }
+      ]
     ],
     "web": {
       "favicon": "./assets/favicon.png"
