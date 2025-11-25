@@ -15,6 +15,9 @@ import {
     STORAGE_KEYS
 } from '../utils/storage';
 import { useMusic } from '../context/MusicContext';
+import { notificationService } from '../services/NotificationService';
+import { DeviceEventEmitter } from 'react-native';
+import notifee, { EventType } from '@notifee/react-native';
 
 export const useTimer = () => {
     const { duckVolume, restoreVolume } = useMusic();
@@ -25,7 +28,7 @@ export const useTimer = () => {
     const [initialDuration, setInitialDuration] = useState((PRESETS[0] || DEFAULT_PRESET).focusDuration * 60);
     const [isRunning, setIsRunning] = useState(false);
     const [currentPreset, setCurrentPreset] = useState<TimerPreset>(PRESETS[0] || DEFAULT_PRESET);
-    
+
     const [dailyFocusTime, setDailyFocusTime] = useState(0);
     const [dailyGoal, setDailyGoal] = useState(60);
     const [streak, setStreak] = useState(0);
@@ -38,7 +41,7 @@ export const useTimer = () => {
     // --- Refs ---
     const soundObjectRef = useRef<Audio.Sound | null>(null);
     const warningSoundRef = useRef<Audio.Sound | null>(null);
-    
+
     // CRITICAL: This ref tracks exactly when we last updated the timer
     const lastProcessedTimeRef = useRef<number>(Date.now());
     const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -76,7 +79,7 @@ export const useTimer = () => {
                 if (isRunning) {
                     const now = Date.now();
                     const timePassedInSec = (now - lastProcessedTimeRef.current) / 1000;
-                    
+
                     // 1. Update countdown
                     const newTimeLeft = Math.max(0, timeLeft - timePassedInSec);
                     setTimeLeft(newTimeLeft);
@@ -92,11 +95,11 @@ export const useTimer = () => {
                             setDailyFocusTime(prev => prev + minutesToCredit);
                         }
                     }
-                    
+
                     // Reset reference to NOW so we don't double count
                     lastProcessedTimeRef.current = now;
                 }
-                
+
                 // Always refresh daily stats on resume
                 loadDailyFocusTime();
             }
@@ -105,6 +108,39 @@ export const useTimer = () => {
 
         return () => subscription.remove();
     }, [isRunning, timeLeft, mode]);
+
+    // --- Notification Action Handling ---
+    useEffect(() => {
+        // Handle Foreground Actions (e.g. user taps button while app is open/visible)
+        const unsubscribeForeground = notifee.onForegroundEvent(({ type, detail }) => {
+            if (type === EventType.ACTION_PRESS && detail.pressAction) {
+                handleNotificationAction(detail.pressAction.id);
+            }
+        });
+
+        // Handle Background Actions (via DeviceEventEmitter from App.tsx)
+        const subscription = DeviceEventEmitter.addListener('notificationAction', (actionId) => {
+            handleNotificationAction(actionId);
+        });
+
+        return () => {
+            unsubscribeForeground();
+            subscription.remove();
+        };
+    }, [isRunning]); // Re-bind if needed, or use refs for stable handlers
+
+    const handleNotificationAction = (actionId: string) => {
+        console.log('Handling action:', actionId);
+        if (actionId === 'pause') {
+            setIsRunning(false);
+            notificationService.updateNotification(timeLeft, initialDuration, mode, true);
+        } else if (actionId === 'resume') {
+            setIsRunning(true);
+            // Notification will be updated by the loop or startTimer
+        } else if (actionId === 'stop') {
+            resetTimer();
+        }
+    };
 
     // --- Main Timer Loop (The "Calculator" Logic) ---
     useEffect(() => {
@@ -135,18 +171,25 @@ export const useTimer = () => {
                         // Let's stick to the robust solution:
                         // We only add time if we haven't finished yet.
                         if (newTimeLeft > 0 && Math.floor(timeLeft / 60) !== Math.floor(newTimeLeft / 60)) {
-                             // A minute boundary was crossed!
-                             addFocusTime(1);
-                             setDailyFocusTime(prev => prev + 1);
+                            // A minute boundary was crossed!
+                            addFocusTime(1);
+                            setDailyFocusTime(prev => prev + 1);
                         }
                     }
 
                     // Update the reference time, BUT keep the remainder ms to avoid drift
                     // (Subtracting the processed integer seconds from Now is safer)
-                    lastProcessedTimeRef.current = now; 
+                    lastProcessedTimeRef.current = now;
 
                     if (newTimeLeft === 0) {
                         handleTimerComplete();
+                    } else {
+                        // Update notification progress
+                        // We don't want to spam the bridge, so maybe every second is fine for local,
+                        // but for notification progress bar, 1s is good.
+                        if (isRunning) {
+                            notificationService.updateNotification(newTimeLeft, initialDuration, mode, false);
+                        }
                     }
                 }
             }, 1000); // Check every second
@@ -184,13 +227,13 @@ export const useTimer = () => {
             const today = new Date().toLocaleDateString('en-CA');
             const minutes = await getStorageDailyTime(today);
             if (!isNaN(minutes)) setDailyFocusTime(minutes);
-            
+
             const goal = await getDailyGoal();
             setDailyGoal(goal);
-            
+
             const s = await getStreak();
             setStreak(s);
-            
+
             const show = await getShowStreak();
             setShowStreak(show);
         } catch (e) {
@@ -207,14 +250,14 @@ export const useTimer = () => {
 
     const handleTimerComplete = async () => {
         setIsRunning(false);
-        
+
         duckVolume();
         if (!isMuted) await playSound();
 
         if (mode === 'focus') {
             await markTodayCompleted();
             await loadDailyFocusTime(); // Sync UI
-            
+
             // Auto-switch to break
             setMode('break');
             setTimeLeft(currentPreset.breakDuration * 60);
@@ -257,17 +300,20 @@ export const useTimer = () => {
         lastProcessedTimeRef.current = Date.now(); // RESET TIME REFERENCE
         setIsRunning(true);
         restoreVolume();
-        
+
         // Schedule notification
-        const endTime = Date.now() + dur * 1000;
-        const id = await Notifications.scheduleNotificationAsync({
-            content: {
-                title: mode === 'focus' ? 'Focus Session Complete!' : 'Break Over!',
-                body: mode === 'focus' ? 'Time to take a break.' : 'Ready to focus again?',
-            },
-            trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(endTime) },
-        });
-        notificationIdRef.current = id;
+        // const endTime = Date.now() + dur * 1000;
+        // const id = await Notifications.scheduleNotificationAsync({
+        //     content: {
+        //         title: mode === 'focus' ? 'Focus Session Complete!' : 'Break Over!',
+        //         body: mode === 'focus' ? 'Time to take a break.' : 'Ready to focus again?',
+        //     },
+        //     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(endTime) },
+        // });
+        // notificationIdRef.current = id;
+
+        // Start Persistent Notification
+        await notificationService.startFocusNotification(dur, initialDuration, mode, false);
     };
 
     const toggleTimer = () => {
@@ -276,6 +322,8 @@ export const useTimer = () => {
             if (notificationIdRef.current) {
                 Notifications.cancelScheduledNotificationAsync(notificationIdRef.current);
             }
+            // Update notification to paused state
+            notificationService.updateNotification(timeLeft, initialDuration, mode, true);
         } else {
             startTimer();
         }
@@ -286,6 +334,7 @@ export const useTimer = () => {
         if (notificationIdRef.current) {
             Notifications.cancelScheduledNotificationAsync(notificationIdRef.current);
         }
+        notificationService.cancelNotification();
         const resetTime = mode === 'focus' ? currentPreset.focusDuration * 60 : currentPreset.breakDuration * 60;
         setTimeLeft(resetTime);
     };

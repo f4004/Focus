@@ -633,19 +633,30 @@ export default function TimerScreen() {
         </Modal>
     );
 
+    const [isStatsExpanded, setIsStatsExpanded] = useState(false);
+
+    // ... (keep other state)
+
     const MainContent = () => (
         <View style={styles.contentContainer}>
             {/* Daily Focus Time Display */}
             <TouchableOpacity
                 style={styles.dailyFocusContainer}
-                onPress={() => setStatsVisible(true)}
+                onPress={() => setIsStatsExpanded(!isStatsExpanded)}
             >
-                <Text style={[styles.dailyFocusText, { color: colors.textSecondary }]}>
-                    Today's Focus: <Text style={{ color: colors.primary, fontWeight: 'bold' }}>{dailyFocusTime}m</Text>
+                <Text style={[styles.dailyFocusText, { color: colors.textSecondary, fontFamily: 'GoogleSansFlex', fontWeight: '300' }]}>
+                    Today's Focus: <Text style={{ color: colors.primary, fontFamily: 'GoogleSansFlex', fontWeight: '600' }}>{dailyFocusTime}m</Text>
                     {showStreak && streak > 0 && (
-                        <Text style={{ color: '#FF9800', fontWeight: 'bold' }}>  🔥 {streak}</Text>
+                        <Text style={{ color: '#FF9800', fontFamily: 'GoogleSansFlex', fontWeight: '600' }}>  🔥 {streak}</Text>
                     )}
                 </Text>
+                {isStatsExpanded && (
+                    <View style={{ marginTop: 8, alignItems: 'center' }}>
+                        <Text style={{ color: colors.textSecondary, fontFamily: 'GoogleSansFlex', fontWeight: '300', fontSize: 12 }}>
+                            Goal: {dailyGoal}m • Streak: {streak} days
+                        </Text>
+                    </View>
+                )}
             </TouchableOpacity>
             <MoonPhaseDisplay progress={initialDuration > 0 ? 1 - (timeLeft / initialDuration) : 0} size={20} />
 
@@ -700,7 +711,7 @@ export default function TimerScreen() {
                 {isEditing ? (
                     <View style={styles.timerCircle}>
                         <TextInput
-                            style={[styles.timeInput, { color: colors.text }]}
+                            style={[styles.timeInput, { color: colors.text, fontFamily: 'GoogleSansFlex', fontWeight: '600' }]}
                             value={editTime}
                             onChangeText={setEditTime}
                             keyboardType="number-pad"
@@ -743,6 +754,7 @@ export default function TimerScreen() {
                                             color: mode === 'focus' ? colors.primary : colors.textSecondary,
                                             fontSize: 16,
                                             fontWeight: '600',
+                                            fontFamily: 'GoogleSansFlex',
                                             marginTop: 16,
                                             textTransform: 'uppercase',
                                             letterSpacing: 1
@@ -753,7 +765,7 @@ export default function TimerScreen() {
                                 </View>
                             ) : (
                                 <View style={styles.timeDisplay}>
-                                    <Text style={[styles.timerText, { color: colors.text }]}>
+                                    <Text style={[styles.timerText, { color: colors.text, fontFamily: 'GoogleSansFlex', fontWeight: '600' }]}>
                                         {formatTime(timeLeft)}
                                     </Text>
                                     <TouchableOpacity onPress={() => switchMode(mode === 'focus' ? 'break' : 'focus')}>
@@ -761,6 +773,7 @@ export default function TimerScreen() {
                                             color: mode === 'focus' ? colors.primary : colors.textSecondary,
                                             fontSize: 16,
                                             fontWeight: '600',
+                                            fontFamily: 'GoogleSansFlex',
                                             marginTop: -5,
                                             marginBottom: 5,
                                             textTransform: 'uppercase',
@@ -775,7 +788,9 @@ export default function TimerScreen() {
                                             fontSize: 14,
                                             textAlign: 'center',
                                             fontStyle: 'italic',
-                                            opacity: 0.8
+                                            opacity: 0.8,
+                                            fontFamily: 'GoogleSansFlex',
+                                            fontWeight: '300'
                                         }}>
                                             {quote}
                                         </Text>
