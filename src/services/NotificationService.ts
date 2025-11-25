@@ -1,5 +1,6 @@
 import notifee, { 
     AndroidImportance, 
+    AndroidVisibility, // <--- Added for Lock Screen
     AndroidForegroundServiceType 
 } from '@notifee/react-native';
 import { Platform } from 'react-native';
@@ -18,6 +19,7 @@ class NotificationService {
                 id: this.channelId,
                 name: 'Focus Timer',
                 importance: AndroidImportance.LOW, 
+                visibility: AndroidVisibility.PUBLIC, // <--- Show on Lock Screen
                 vibration: false,
                 sound: undefined,
             });
@@ -39,12 +41,12 @@ class NotificationService {
         const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
         const nextMode = mode === 'focus' ? 'Break' : 'Focus';
 
-        // 1. Config based on state
-        // Android 10+ Optimization: Only run "Service" when actually running/playing
+        // 1. Prepare configuration
+        // We split logic: "Running" needs a Service, "Paused" is just a notification.
         const androidConfig = isPaused ? {
-            // PAUSED STATE: Standard notification, dismissible
+            // PAUSED STATE
             channelId: this.channelId,
-            ongoing: false, 
+            ongoing: false, // Dismissible
             autoCancel: false,
             onlyAlertOnce: true,
             color: mode === 'focus' ? '#4CAF50' : '#2196F3',
@@ -58,14 +60,14 @@ class NotificationService {
                 { title: 'Stop', pressAction: { id: 'stop' } },
             ],
         } : {
-            // RUNNING STATE: Foreground Service (Pinned)
+            // RUNNING STATE
             channelId: this.channelId,
-            asForegroundService: true,
-            ongoing: true,
+            asForegroundService: true, // Requires Service Type & Audio
+            ongoing: true, // Pinned
             autoCancel: false,
             onlyAlertOnce: true,
             color: mode === 'focus' ? '#4CAF50' : '#2196F3',
-            // Critical for Android 10/14 "Media" types
+            // Define Service Type for Android 10-14 safety
             foregroundServiceTypes: [AndroidForegroundServiceType.MEDIA_PLAYBACK],
             progress: {
                 max: totalDuration,
@@ -78,26 +80,35 @@ class NotificationService {
             ],
         };
 
-        // 2. If Paused, we must STOP the service first to avoid "Media Service not playing" crash
-        if (isPaused) {
-            await notifee.stopForegroundService();
-        }
+        try {
+            // 2. If we are Pausing, we MUST stop the service first
+            // Otherwise Android thinks the service is "stuck"
+            if (isPaused) {
+                await notifee.stopForegroundService();
+            }
 
-        // 3. Display/Update the notification
-        await notifee.displayNotification({
-            id: this.notificationId,
-            title: `${mode === 'focus' ? 'Focus' : 'Break'} • ${timeString} remaining`,
-            body: isPaused ? 'Timer Paused' : `Up next: ${nextMode}`,
-            android: androidConfig,
-            ios: {
-                foregroundPresentationOptions: {
-                    banner: true,
-                    list: true,
-                    badge: false,
-                    sound: false,
+            // 3. Display the notification
+            await notifee.displayNotification({
+                id: this.notificationId,
+                title: `${mode === 'focus' ? 'Focus' : 'Break'} • ${timeString} remaining`,
+                body: isPaused ? 'Timer Paused' : `Up next: ${nextMode}`,
+                android: {
+                    ...androidConfig,
+                    visibility: AndroidVisibility.PUBLIC, // <--- Key for Lock Screen
+                    showTimestamp: true,
                 },
-            },
-        });
+                ios: {
+                    foregroundPresentationOptions: {
+                        banner: true,
+                        list: true,
+                        badge: false,
+                        sound: false,
+                    },
+                },
+            });
+        } catch (error) {
+            console.error("Notification Error:", error);
+        }
     }
 
     async updateNotification(
